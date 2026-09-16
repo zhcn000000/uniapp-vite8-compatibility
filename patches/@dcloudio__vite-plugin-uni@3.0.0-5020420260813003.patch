@@ -1,0 +1,129 @@
+diff --git a/dist/config/index.js b/dist/config/index.js
+index a920f75343cc7dcdc090e5b61f653918289ffacb..3867400966fda0c999a7754164ce3e8b47a65e58 100644
+--- a/dist/config/index.js
++++ b/dist/config/index.js
+@@ -35,11 +35,6 @@ function createConfig(options, _uniPlugins) {
+             optimizeDeps: (0, optimizeDeps_1.createOptimizeDeps)(options),
+             build: (0, build_1.createBuild)(options, config),
+             css: (0, css_1.createCss)(options, config),
+-            esbuild: {
+-                include: /\.(tsx?|jsx|uts)$/,
+-                exclude: /\.js$/,
+-                loader: 'ts',
+-            },
+         };
+         if ((0, uni_cli_shared_1.isInHBuilderX)()) {
+             pluginConfig.cacheDir = path_1.default.resolve(process.env.UNI_OUTPUT_DIR, '../../cache/.vite');
+diff --git a/dist/config/resolve.js b/dist/config/resolve.js
+index 963cbc5f55ddb74bd2faf395db6d63c9a46a6fcd..46067a9c4a8222f7e9d9db853f26255c11fae325 100644
+--- a/dist/config/resolve.js
++++ b/dist/config/resolve.js
+@@ -49,14 +49,16 @@ function createResolve(options, _config) {
+     return {
+         // 必须使用alias解析，插件定制的resolveId，不会被应用到css等预处理器中
+         alias: [
+-            // because @rollup/plugin-alias' type doesn't allow function
+-            // replacement, but its implementation does work with function values.
++            // rolldown(vite8)：alias 条目须全 string——原生 ViteAlias 不接受 function replacement，
++            // customResolver 已废弃（vite9 移除）；uts/加密模块/分包独立 root 逻辑 mp-weixin 均不涉及，
++            // 无扩展名导入由 resolve.extensions（含 .vue/.json）兜底
+             {
+-                find: /^(~@|@)\/(.*)/,
+-                replacement(_str, _$1, $2) {
+-                    return (0, uni_cli_shared_1.normalizePath)(path_1.default.resolve(options.inputDir, $2));
+-                },
+-                customResolver: exports.customResolver,
++                find: '@',
++                replacement: (0, uni_cli_shared_1.normalizePath)(path_1.default.resolve(options.inputDir)),
++            },
++            {
++                find: '~@',
++                replacement: (0, uni_cli_shared_1.normalizePath)(path_1.default.resolve(options.inputDir)),
+             },
+             ...alias,
+         ],
+diff --git a/dist/configResolved/index.js b/dist/configResolved/index.js
+index 72cbedc56be94deb0106616dcb822f269bbcfd8a..fc08e2a788084a2fb58616e521337abe3c49f787 100644
+--- a/dist/configResolved/index.js
++++ b/dist/configResolved/index.js
+@@ -6,7 +6,6 @@ const uni_cli_shared_1 = require("@dcloudio/uni-cli-shared");
+ const env_1 = require("./env");
+ const options_1 = require("./options");
+ const plugins_1 = require("./plugins");
+-const resolve_1 = require("../config/resolve");
+ function createConfigResolved(options) {
+     return (config) => {
+         // 如果是混合编译且是 nvue 时，部分逻辑无需执行
+@@ -19,14 +18,7 @@ function createConfigResolved(options) {
+         if (!(0, uni_cli_shared_1.isInHybridNVue)(config)) {
+             initCheckUpdate();
+         }
+-        if (uni_cli_shared_1.isWindows) {
+-            // TODO 等 https://github.com/vitejs/vite/issues/3331 修复后，可以移除下列代码
+-            // 2.8.0 已修复，但为了兼容旧版本，先不移除
+-            const item = config.resolve.alias.find((item) => !(0, shared_1.isString)(item.find) ? item.find.test('@/') : false);
+-            if (item) {
+-                item.customResolver = resolve_1.customResolver;
+-            }
+-        }
++        // rolldown(vite8)：isWindows 下重挂 customResolver 的 workaround 已废弃（vite#3331 早已修复），移除
+     };
+ }
+ exports.createConfigResolved = createConfigResolved;
+diff --git a/dist/configResolved/plugins/json.js b/dist/configResolved/plugins/json.js
+index 86db5f0a65110b49647b31dcc4b89df3b5dcfdba..d28fb240a6351d557934bc2bb646d85ff17ef683 100644
+--- a/dist/configResolved/plugins/json.js
++++ b/dist/configResolved/plugins/json.js
+@@ -15,6 +15,9 @@ function uniJsonPlugin(options) {
+                 return null;
+             if (id.endsWith('.json.js'))
+                 return null;
++            // rolldown(vite8)：node_modules 内的 json 交还原生处理，避免 JS transform 后被按 JS 解析
++            if (id.includes('node_modules'))
++                return null;
+             // preprocess
+             if (code.includes('#endif')) {
+                 code = (0, uni_cli_shared_1.preJs)(code, id);
+@@ -24,7 +27,7 @@ function uniJsonPlugin(options) {
+                 jsonObj = jsonObj.common || {};
+             }
+             return {
+-                code: JSON.stringify(jsonObj),
++                code: `export default ${JSON.stringify(jsonObj ?? null)}`,
+                 map: null,
+             };
+         },
+diff --git a/dist/index.mjs b/dist/index.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..856a4389325c8fb53d2141fc436ce9a6d60e46cc
+--- /dev/null
++++ b/dist/index.mjs
+@@ -0,0 +1,9 @@
++// rolldown(vite8)：为 ESM 消费方（"type":"module" 工程的 vite.config）提供正确的 default 导出。
++// 本包为 CJS（exports.default = uniPlugin），Node ESM 语义下 default import = module.exports 整体，
++// 经此包装后 import uni from '@dcloudio/vite-plugin-uni' 拿到的才是插件工厂函数
++import cjs from './index.js';
++
++export default cjs.default ?? cjs;
++export const runDev = cjs.runDev;
++export const runBuild = cjs.runBuild;
++export const shouldMoveSourceMapFromCache = cjs.shouldMoveSourceMapFromCache;
+diff --git a/package.json b/package.json
+index 116d04c71227943b214c7b399bd790948f7b051f..5415fcc485d8a209ef6d57b692ee7f18d468f352 100644
+--- a/package.json
++++ b/package.json
+@@ -20,6 +20,14 @@
+     "directory": "packages/vite-plugin-uni"
+   },
+   "license": "Apache-2.0",
++  "exports": {
++    ".": {
++      "types": "./dist/index.d.ts",
++      "import": "./dist/index.mjs",
++      "require": "./dist/index.js"
++    },
++    "./package.json": "./package.json"
++  },
+   "dependencies": {
+     "@babel/core": "7.25.2",
+     "@babel/types": "7.25.6",

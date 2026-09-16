@@ -1,0 +1,14 @@
+diff --git a/dist/vite/plugins/json.js b/dist/vite/plugins/json.js
+index 45b62163a02f4fd1f0bc357d2c9b4e8d3d19a610..8ad33c828de2a1c2af3b826565f8244544477c3c 100644
+--- a/dist/vite/plugins/json.js
++++ b/dist/vite/plugins/json.js
+@@ -20,6 +20,9 @@ function uniJsonPlugin() {
+             if (path_1.default.extname((0, utils_1.parseVueRequest)(id).filename) !== '.json') {
+                 return;
+             }
++            if (id.includes('node_modules')) {
++                return;
++            }
+             return {
+                 code: JSON.stringify((0, json_1.parseJson)((0, preprocess_1.preJson)(code, id), false, id), null, 2),
+                 map: {

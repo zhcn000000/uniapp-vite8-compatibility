@@ -1,0 +1,13 @@
+diff --git a/dist/plugins/mainJs.js b/dist/plugins/mainJs.js
+index b9882e63c06e9ab3fd80b8e081bdf6d691b4226d..a6d7cccab39e68bbfc862fc55a7b273991c1e815 100644
+--- a/dist/plugins/mainJs.js
++++ b/dist/plugins/mainJs.js
+@@ -29,7 +29,7 @@ function uniMainJsPlugin(options = {}) {
+                     const inputDir = process.env.UNI_INPUT_DIR;
+                     const globalComponentOptions = {
+                         inputDir,
+-                        resolve: this.resolve,
++                        resolve: (...args) => this.resolve(...args),
+                         normalizeComponentName,
+                         root: independentRoot,
+                     };
