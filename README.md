@@ -19,8 +19,9 @@ uniapp-vite8-compatibility/
 | `@dcloudio/uni-mp-vite` | `3.0.0-5020420260813003` |
 | `@dcloudio/vite-plugin-uni` | `3.0.0-5020420260813003` |
 | `vite` | `^8`（验证于 8.3.x） |
+| `vitest` | `^5` |
 
-补丁在 **mp-weixin（微信小程序）** 目标下验证；H5 / App 端未验证。
+补丁后可用vitest测试，主要验证微信小程序端
 
 ### 其他版本能否应用？
 
