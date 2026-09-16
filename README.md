@@ -48,7 +48,7 @@ uniapp-vite8-compatibility/
 4. `dist/configResolved/index.js`：移除 Windows 下重挂 `customResolver` 的 workaround（vite#3331 早已修复）。
 5. 新增 `dist/index.mjs` 并在 `package.json` 增加 `exports`：本包是 CJS（`exports.default = uniPlugin`），`"type":"module"` 工程由 Node ESM 直载 vite.config 时，default import 拿到的是 `module.exports` 整体；经包装转发后 `import uni from '@dcloudio/vite-plugin-uni'` 才能拿到插件工厂函数。`exports` 同时附带 `"./package.json"` 子路径，防 exports 封闭拦截。
 
-## 配套调整（补丁之外，必需）
+## 配套调整（补丁之外，建议）
 
 ### vite.config.ts
 
@@ -59,7 +59,7 @@ import { defineConfig } from "vite";
 export default defineConfig(({ mode }) => ({
   plugins: [uni()],
   build: {
-    // uni-app 默认透传 terser（hasOwn 透传不分环境，dev watch 也得显式给 false 保持产物可读）；
+    // uni-app 默认透传 terser（oxc压缩率更高）；
     // vite 8 中 minify: true 会归一化为内置 oxc
     minify: mode === "production",
     // rolldown 的插件耗时占比提示在 uni-app 构建下恒触发，属噪音
