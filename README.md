@@ -21,7 +21,7 @@ uniapp-vite8-compatibility/
 | `vite` | `^8`（验证于 8.3.x） |
 | `vitest` | `^5` |
 
-补丁后可用vitest测试，主要验证微信小程序端
+补丁后可用vitest测试，也可正常导入uni插件，构建产物主要验证微信小程序端下正确性
 
 ### 其他版本能否应用？
 
