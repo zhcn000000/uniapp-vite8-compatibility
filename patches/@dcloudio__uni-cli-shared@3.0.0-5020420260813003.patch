@@ -12,3 +12,204 @@ index 45b62163a02f4fd1f0bc357d2c9b4e8d3d19a610..8ad33c828de2a1c2af3b826565f82445
              return {
                  code: JSON.stringify((0, json_1.parseJson)((0, preprocess_1.preJson)(code, id), false, id), null, 2),
                  map: {
+diff --git a/dist/vite/plugins/vitejs/plugins/css.js b/dist/vite/plugins/vitejs/plugins/css.js
+index f8d36b5f6e1991260c1e4a45c5ea2dedac034e3d..96dd64f57dc4577865f8b03ade81687352f76d30 100644
+--- a/dist/vite/plugins/vitejs/plugins/css.js
++++ b/dist/vite/plugins/vitejs/plugins/css.js
+@@ -30,6 +30,7 @@ exports.rewriteScssReadFileSync = exports.hoistAtRules = exports.minifyCSS = exp
+ const fs_1 = __importDefault(require("fs"));
+ const fs_extra_1 = __importDefault(require("fs-extra"));
+ const path_1 = __importDefault(require("path"));
++const nodeUrl = require("url");
+ const fast_glob_1 = __importDefault(require("fast-glob"));
+ const picocolors_1 = __importDefault(require("picocolors"));
+ const postcss_load_config_1 = __importDefault(require("postcss-load-config"));
+@@ -125,6 +126,11 @@ function cssPlugin(config, options = { isAndroidX: false }) {
+             moduleCache = new Map();
+             cssModulesCache.set(config, moduleCache);
+         },
++        // fixed by xxxxxx: 终结 sass(-embedded) 常驻编译器，释放 Dart 子进程持住的事件循环句柄，
++        // 让命令行构建（无显式 process.exit）在产物写完后能自然退出
++        async closeBundle() {
++            await disposeSassCompiler();
++        },
+         async transform(raw, id) {
+             if (!exports.cssLangRE.test(id) || exports.commonjsProxyRE.test(id)) {
+                 return;
+@@ -925,71 +931,126 @@ function loadPreprocessor(lang, root) {
+         throw new Error(`Preprocessor dependency "${lang}" not found. Did you install it?`);
+     }
+ }
+-// .scss/.sass processor
++// fixed by xxxxxx: scss/sass 统一走现代 API（compileStringAsync），消除 legacy render() 每编译
++// 单元触发一条的 legacy-js-api deprecation 刷屏。包加载 sass-embedded 优先（Dart 编译器，全部编译
++// 单元共享单一常驻子进程，显著快于纯 JS 实现），纯 JS sass 仅作缺包兜底。sass-embedded 的 Dart
++// 子进程经默认 stdio pipe 持住事件循环（包内无 unref，不 dispose 进程无法自然退出），而 uni CLI
++// 仅 HBuilderX/ext-api 环境才显式 process.exit（cli/action.js runBuild），命令行构建依赖进程自然
++// 退出——故在 cssPlugin 的 closeBundle 钩子里 dispose 编译器兜底（build 与 watch 结束都会触发，
++// watch 下次编译时 getSassCompiler 按需重建）
++function loadSassPackage(root) {
++    try {
++        return loadPreprocessor('sass-embedded', root);
++    }
++    catch (e) {
++        return loadPreprocessor('sass', root);
++    }
++}
++let sassCompilerPromise;
++function getSassCompiler(root) {
++    sassCompilerPromise ??= Promise.resolve(loadSassPackage(root).initAsyncCompiler());
++    return sassCompilerPromise;
++}
++async function disposeSassCompiler() {
++    const pending = sassCompilerPromise;
++    sassCompilerPromise = undefined;
++    if (pending) {
++        try {
++            await (await pending).dispose();
++        }
++        catch (e) {
++            // dispose 失败不影响构建结果（进程退出后管道关闭同样会终止子进程）
++        }
++    }
++}
++// .scss/.sass processor（现代 FileImporter：canonicalize 经 resolver 解析 alias/node_modules/
++// 相对路径，load 经 rebaseUrls 完成条件编译预处理与 url() 重写，与旧版 importer 行为一致）
+ const scss = async (source, root, options, resolvers, isNVue) => {
+-    const render = loadPreprocessor("sass" /* PreprocessLang.sass */, root).render;
+-    // NOTE: `sass` always runs it's own importer first, and only falls back to
+-    // the `importer` option when it can't resolve a path
+-    const internalImporter = (url, importer, done) => {
+-        resolvers.sass(url, importer).then((resolved) => {
+-            if (resolved) {
+-                rebaseUrls(resolved, options.filename, options.alias, isNVue)
+-                    .then((data) => done?.(data))
+-                    .catch((data) => done?.(data));
+-            }
+-            else {
+-                done?.(null);
+-            }
+-        });
++    const internalImporter = {
++        canonicalize(url, context) {
++            const importer = context.containingUrl
++                ? nodeUrl.fileURLToPath(context.containingUrl)
++                : options.filename;
++            return resolvers.sass(url, importer).then((resolved) => {
++                if (resolved &&
++                    (resolved.endsWith('.css') ||
++                        resolved.endsWith('.scss') ||
++                        resolved.endsWith('.sass')) &&
++                    // 入口设定 url 后 Dart/sass 会先把 import 相对入口预解析成 file:// 绝对地址，
++                    // vite resolver 对该 id 会剥掉 scheme 返回不存在的裸路径，须存在性校验
++                    // 拦下（返回 null 后会带原始 URL + containingUrl 再走一轮解析）
++                    fs_1.default.existsSync(resolved)) {
++                    return nodeUrl.pathToFileURL(resolved);
++                }
++                return null;
++            });
++        },
++        load(canonicalUrl) {
++            const file = nodeUrl.fileURLToPath(canonicalUrl);
++            return rebaseUrls(file, options.filename, options.alias, isNVue).then((data) => {
++                const ext = path_1.default.extname(file);
++                let syntax = 'scss';
++                if (ext === '.sass') {
++                    syntax = 'indented';
++                }
++                else if (ext === '.css') {
++                    syntax = 'css';
++                }
++                return {
++                    contents: data.contents ??
++                        fs_1.default.readFileSync(data.file, 'utf-8'),
++                    syntax,
++                    sourceMapUrl: canonicalUrl,
++                };
++            });
++        },
+     };
+-    const importer = [internalImporter];
+-    if (options.importer) {
+-        (0, shared_1.isArray)(options.importer)
+-            ? importer.push(...options.importer)
+-            : importer.push(options.importer);
+-    }
++    const importers = [...(options.importers || []), internalImporter];
+     const { content: data, map: additionalMap } = await getSource(source, options.filename, options.additionalData, options.enableSourcemap);
+     const finalOptions = {
+         ...options,
+-        data,
+-        file: options.filename,
+-        outFile: options.filename,
+-        importer,
+-        ...(options.enableSourcemap
+-            ? {
+-                sourceMap: true,
+-                omitSourceMapUrl: true,
+-                sourceMapRoot: path_1.default.dirname(options.filename),
+-            }
+-            : {}),
++        syntax: options.indentedSyntax ? 'indented' : 'scss',
++        url: nodeUrl.pathToFileURL(options.filename),
++        importers,
++        // 现代 API 无 legacy 函数 importer，入口相对导入统一走 internalImporter
++        importer: internalImporter,
++        sourceMap: !!options.enableSourcemap,
+     };
++    // legacy render 专属选项清理/映射（includePaths → loadPaths）
++    if ((0, shared_1.isArray)(finalOptions.includePaths) && finalOptions.includePaths.length) {
++        finalOptions.loadPaths = finalOptions.includePaths;
++    }
++    delete finalOptions.includePaths;
++    delete finalOptions.indentedSyntax;
++    delete finalOptions.additionalData;
++    delete finalOptions.enableSourcemap;
++    delete finalOptions.alias;
++    // uni.scss 变量经 additionalData 内联进每个编译单元（见 vite-plugin-uni config/css.js），
++    // 入口无法改用 @use：@import 与入口共享作用域（内联变量对被导入文件可见），@use 为模块
++    // 作用域看不到内联变量且须先于输出规则 → @import 不可避免，默认静音（用户配置可合并）
++    finalOptions.silenceDeprecations = [
++        ...new Set(['import', ...(finalOptions.silenceDeprecations || [])]),
++    ];
+     try {
+-        const result = await new Promise((resolve, reject) => {
+-            render(finalOptions, (err, res) => {
+-                if (err) {
+-                    reject(err);
+-                }
+-                else {
+-                    resolve(res);
+-                }
+-            });
+-        });
+-        const deps = result.stats.includedFiles;
+-        const map = result.map
+-            ? JSON.parse(result.map.toString())
+-            : undefined;
++        const compiler = await getSassCompiler(root);
++        const result = await compiler.compileStringAsync(data, finalOptions);
++        const deps = result.loadedUrls
++            .filter((url) => url.protocol === 'file:')
++            .map((url) => nodeUrl.fileURLToPath(url));
+         return {
+             code: result.css.toString(),
+-            map,
++            map: result.sourceMap ? { ...result.sourceMap } : undefined,
+             additionalMap,
+             errors: [],
+             deps,
+         };
+     }
+     catch (e) {
+-        // normalize SASS error
+-        e.id = e.file;
+-        e.frame = e.formatted;
++        // normalize SASS error（现代 API 异常无 file/formatted，取 span 信息兜底）
++        e.id =
++            e.file ||
++                (e.span && e.span.url ? nodeUrl.fileURLToPath(e.span.url) : options.filename);
++        e.frame = e.formatted || e.sassMessage || e.message;
+         return { code: '', errors: [e], deps: [] };
+     }
+ };

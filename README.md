@@ -20,6 +20,7 @@ uniapp-vite8-compatibility/
 | `@dcloudio/vite-plugin-uni` | `3.0.0-5020420260813003` |
 | `vite` | `^8`（验证于 8.3.x） |
 | `vitest` | `^5` |
+| `sass` / `sass-embedded` | `≥ 1.74`（现代编译 API 与 `silenceDeprecations` 所需；`sass-embedded` 优先，纯 JS `sass` 兜底） |
 
 补丁后可用vitest测试，也可正常导入uni插件，构建产物主要验证微信小程序端下正确性
 
@@ -37,9 +38,16 @@ uniapp-vite8-compatibility/
 
 `dist/plugins/mainJs.js`：`globalComponentOptions.resolve` 由 `this.resolve` 改为 `(...args) => this.resolve(...args)`。原样传引用，后续调用时 `this` 已丢失，vite 8 下直接报错。
 
-### 2. `@dcloudio/uni-cli-shared` — `uni:json` 放行 node_modules
+### 2. `@dcloudio/uni-cli-shared` — `uni:json` 放行 node_modules + sass 现代 API
 
 `dist/vite/plugins/json.js`：id 含 `node_modules` 时直接 `return`，把依赖内的 json 交还 vite 原生 json 插件处理，避免被 uni 预处理后在 rolldown 下按 JS 解析失败。
+
+`dist/vite/plugins/vitejs/plugins/css.js`：scss/sass 编译从 legacy `render()` 迁移到 sass 现代 API，并修复 sass-embedded 阻塞 CLI 退出的问题（需 `sass` / `sass-embedded` ≥ 1.74）：
+
+- **API 迁移**：`render()` → `initAsyncCompiler()` + `compileStringAsync()`，编译器实例全进程缓存复用，消除每个编译单元触发一条的 `legacy-js-api` deprecation 刷屏。
+- **sass-embedded 优先 + CLI 退出修复**：预处理器包改为 `sass-embedded` 优先——Dart 编译器、全部编译单元共享单一常驻子进程，明显快于纯 JS 实现；纯 JS `sass` 仅缺包时兜底。其子进程经 stdio pipe 持住事件循环，不 `dispose()` 进程无法自然退出（uni CLI 仅 HBuilderX/ext-api 环境才显式 `process.exit`）；补丁在 cssPlugin 增加 `closeBundle` 钩子 `dispose()` 编译器兜底：build 结束触发后 CLI 正常退出，watch 模式同样触发、下次编译按需重建编译器。
+- **importer 重写**：legacy 函数式 importer 改为现代 `FileImporter`：`canonicalize` 经 vite resolver 解析 alias / node_modules / 相对路径，`load` 沿用 `rebaseUrls` 保留条件编译预处理与 `url()` 重写；依赖列表改从 `result.loadedUrls` 收集，报错信息从异常的 `span` 字段兜底还原。
+- **选项映射**：`includePaths` → `loadPaths`，剥离 legacy 专属选项；`silenceDeprecations` 默认合并 `'import'`——uni.scss 变量经 `additionalData` 内联进每个编译单元，与 `@import` 共享作用域，而 `@use` 是模块作用域看不到内联变量，`@import` 暂不可避免，故静音该弃用告警。
 
 ### 3. `@dcloudio/vite-plugin-uni` — 五处适配
 
@@ -69,9 +77,9 @@ export default defineConfig(({ mode }) => ({
 }));
 ```
 
-### 依赖覆盖（vue 必须 ≥ 3.5）
+### 依赖覆盖
 
-`@dcloudio/* 3.0.0-5020420260813003` 锁定的 vue / vite 插件是 vite 5 时代版本，直接安装会与 vite 8 冲突，必须用 overrides 抬版本。**vue 系列建议覆盖到 3.5 以上**（Bun 下必须）。
+`@dcloudio/* 3.0.0-5020420260813003` 锁定的 vue / vite 插件是 vite 5 时代版本，直接安装会与 vite 8 冲突，必须用 overrides 抬版本。**vue 系列推荐覆盖到 3.5 以上**（Bun 下必须）。
 
 ```jsonc
 // npm：package.json "overrides"；yarn：package.json "resolutions"（同形）；
@@ -79,6 +87,7 @@ export default defineConfig(({ mode }) => ({
 {
   "vite": "^8.0.0",
   "vue": "^3.5.0",
+  "sass-embedded": "^1.104.0",
   "@vue/compiler-sfc": "^3.5.0",
   "@vue/server-renderer": "^3.5.0",
   "@vue/compiler-core": "^3.5.0",
