@@ -168,3 +168,6 @@ Bun ≥ 1.3 提供 `bun patch <pkg>` / `bun patch --commit`，流程同上（编
   3. 上下文已变 → 用对应包管理器的官方流程重新生成补丁（以 pnpm 为例：`pnpm patch <pkg>@<新版本>` → 在临时目录套用同样的改动 → `pnpm patch-commit`）。
 - 构建以 `uni build -p mp-weixin`（或你的目标平台）通过为准，产物用微信开发者工具导入验证。
 - `@dcloudio/*` 上游若已原生适配 vite 8（补丁涉及的 `esbuild` 选项、alias、ESM 入口等均已修），应优先移除补丁回到官方实现。
+
+## 许可证
+- MIT
