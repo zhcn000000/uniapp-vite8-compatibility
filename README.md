@@ -64,7 +64,7 @@ export default defineConfig(({ mode }) => ({
     // vite 8 中 minify: true 会归一化为内置 oxc
     minify: mode === "production",
     // rolldown 的插件耗时占比提示在 uni-app 构建下恒触发，属噪音
-    rollupOptions: { checks: { pluginTimings: false } },
+    rolldownOptions: { checks: { pluginTimings: false } },
   },
 }));
 ```
