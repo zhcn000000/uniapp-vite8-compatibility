@@ -24,6 +24,15 @@ uniapp-vite8-compatibility/
 
 补丁后可用vitest测试，也可正常导入uni插件，构建产物主要验证微信小程序端下正确性
 
+## 性能
+
+测试工程规模：mp-weixin 目标中型工程——`src` 约 130 个源文件（80 个 `.vue` + 50 个 `.ts`，约 4 万行），含 uni-ui 运行时依赖，产物约 430 个文件 / 1.9 MB。
+
+基线 = 同一 `@dcloudio/*` 版本去掉补丁、还原官方 peerDep 锁定的 vite 5.2.8（terser 压缩、纯 JS `sass` legacy API、`@vitejs/plugin-vue` 5.x 等官方配套）；对比 = 补丁后 vite 8（rolldown 内置 oxc 压缩、`sass-embedded` 现代 API）。同机同源码，warmup 后各 3 次取中位：
+
+- **构建加速约 1.9×**（6.0s → 3.2s，3 次波动 <2%）(本补丁只使uniapp vite插件与rolldown兼容，收益小幅受限)
+- **主包体积明显减少**：主包代码内联至分包；其中主包公共 vendor chunk 因 rolldown tree-shaking **缩小约 14%**，差额被分包页面 chunk 的内联摊平——总包体积不受损，主包内大依赖收益明显，主包+所有分包总体积大体不变
+
 ### 其他版本能否应用？
 
 **可以，但需重验。** 补丁本体是标准 git unified diff：只要目标文件的上下文行没被上游改动，相邻版本通常可直接应用（`git apply` 容忍行号偏移）。注意事项：
