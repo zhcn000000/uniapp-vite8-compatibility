@@ -1,13 +1,16 @@
 diff --git a/dist/config/index.js b/dist/config/index.js
-index a920f75343cc7dcdc090e5b61f653918289ffacb..3867400966fda0c999a7754164ce3e8b47a65e58 100644
+index fa8a7d8e6b9bff914c2cbdc7a8e8802c3cf88b88..3867400966fda0c999a7754164ce3e8b47a65e58 100644
 --- a/dist/config/index.js
 +++ b/dist/config/index.js
-@@ -35,11 +35,6 @@ function createConfig(options, _uniPlugins) {
+@@ -35,14 +35,6 @@ function createConfig(options, _uniPlugins) {
              optimizeDeps: (0, optimizeDeps_1.createOptimizeDeps)(options),
              build: (0, build_1.createBuild)(options, config),
              css: (0, css_1.createCss)(options, config),
 -            esbuild: {
--                include: /\.(tsx?|jsx|uts)$/,
+-                include: process.env.UNI_APP_X_DOM2 === 'true' &&
+-                    process.env.UNI_APP_X_VAPOR_SCRIPT_LANG === 'true'
+-                    ? /\.(tsx?|jsx)$/
+-                    : /\.(tsx?|jsx|uts)$/,
 -                exclude: /\.js$/,
 -                loader: 'ts',
 -            },
@@ -109,7 +112,7 @@ index 0000000000000000000000000000000000000000..856a4389325c8fb53d2141fc436ce9a6
 +export const runBuild = cjs.runBuild;
 +export const shouldMoveSourceMapFromCache = cjs.shouldMoveSourceMapFromCache;
 diff --git a/package.json b/package.json
-index 116d04c71227943b214c7b399bd790948f7b051f..5415fcc485d8a209ef6d57b692ee7f18d468f352 100644
+index f129548e5ff07ba4d6b66d8eee6327ba268a162b..0f3f2949772c477f67f39a0866ec91c7be5787ce 100644
 --- a/package.json
 +++ b/package.json
 @@ -20,6 +20,14 @@

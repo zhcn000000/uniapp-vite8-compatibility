@@ -6,18 +6,18 @@ uni-app `@dcloudio/*` 编译链在 **Vite 8（rolldown 内核）** 下的兼容�
 uniapp-vite8-compatibility/
 ├── README.md
 └── patches/
-    ├── @dcloudio__uni-cli-shared@3.0.0-5020420260813003.patch
-    ├── @dcloudio__uni-mp-vite@3.0.0-5020420260813003.patch
-    └── @dcloudio__vite-plugin-uni@3.0.0-5020420260813003.patch
+    ├── @dcloudio__uni-cli-shared@3.0.0-5020620260917001.patch
+    ├── @dcloudio__uni-mp-vite@3.0.0-5020620260917001.patch
+    └── @dcloudio__vite-plugin-uni@3.0.0-5020620260917001.patch
 ```
 
 ## 补丁针对的版本
 
 | 包 | 锁定版本 |
 | ---- | ---- |
-| `@dcloudio/uni-cli-shared` | `3.0.0-5020420260813003` |
-| `@dcloudio/uni-mp-vite` | `3.0.0-5020420260813003` |
-| `@dcloudio/vite-plugin-uni` | `3.0.0-5020420260813003` |
+| `@dcloudio/uni-cli-shared` | `3.0.0-5020620260917001` |
+| `@dcloudio/uni-mp-vite` | `3.0.0-5020620260917001` |
+| `@dcloudio/vite-plugin-uni` | `3.0.0-5020620260917001` |
 | `vite` | `^8`（验证于 8.3.x） |
 | `vitest` | `^5` |
 | `sass` / `sass-embedded` | `≥ 1.74`（现代编译 API 与 `silenceDeprecations` 所需；`sass-embedded` 优先，纯 JS `sass` 兜底） |
@@ -88,7 +88,7 @@ export default defineConfig(({ mode }) => ({
 
 ### 依赖覆盖
 
-`@dcloudio/* 3.0.0-5020420260813003` 锁定的 vue / vite 插件是 vite 5 时代版本，直接安装会与 vite 8 冲突，必须用 overrides 抬版本。**vue 系列推荐覆盖到 3.5 以上**（Bun 下必须）。
+`@dcloudio/* 3.0.0-5020620260917001` 锁定的 vue / vite 插件是 vite 5 时代版本，直接安装会与 vite 8 冲突，必须用 overrides 抬版本。**vue 系列推荐覆盖到 3.5 以上**（Bun 下必须）。
 
 ```jsonc
 // npm：package.json "overrides"；yarn：package.json "resolutions"（同形）；
@@ -123,14 +123,14 @@ export default defineConfig(({ mode }) => ({
 ```yaml
 # pnpm-workspace.yaml
 patchedDependencies:
-  "@dcloudio/uni-cli-shared@3.0.0-5020420260813003": patches/@dcloudio__uni-cli-shared@3.0.0-5020420260813003.patch
-  "@dcloudio/uni-mp-vite@3.0.0-5020420260813003": patches/@dcloudio__uni-mp-vite@3.0.0-5020420260813003.patch
-  "@dcloudio/vite-plugin-uni@3.0.0-5020420260813003": patches/@dcloudio__vite-plugin-uni@3.0.0-5020420260813003.patch
+  "@dcloudio/uni-cli-shared@3.0.0-5020620260917001": patches/@dcloudio__uni-cli-shared@3.0.0-5020620260917001.patch
+  "@dcloudio/uni-mp-vite@3.0.0-5020620260917001": patches/@dcloudio__uni-mp-vite@3.0.0-5020620260917001.patch
+  "@dcloudio/vite-plugin-uni@3.0.0-5020620260917001": patches/@dcloudio__vite-plugin-uni@3.0.0-5020620260917001.patch
 ```
 
 3. `pnpm install`，补丁在安装期间自动应用。
 
-后续修改补丁：`pnpm patch @dcloudio/vite-plugin-uni@3.0.0-5020420260813003` 在临时目录改文件，然后 `pnpm patch-commit <临时目录>` 重新生成并登记。
+后续修改补丁：`pnpm patch @dcloudio/vite-plugin-uni@3.0.0-5020620260917001` 在临时目录改文件，然后 `pnpm patch-commit <临时目录>` 重新生成并登记。
 
 ### npm（CLI v12 起，原生支持）
 
@@ -142,9 +142,9 @@ npm 已内置 `npm patch`：补丁存于 `patches/` 目录、登记在根 `packa
 // package.json（示意；推荐用 npm patch 命令自动生成登记，以生成条目为准）
 {
   "patchedDependencies": {
-    "@dcloudio/uni-cli-shared@3.0.0-5020420260813003": "patches/@dcloudio__uni-cli-shared@3.0.0-5020420260813003.patch",
-    "@dcloudio/uni-mp-vite@3.0.0-5020420260813003": "patches/@dcloudio__uni-mp-vite@3.0.0-5020420260813003.patch",
-    "@dcloudio/vite-plugin-uni@3.0.0-5020420260813003": "patches/@dcloudio__vite-plugin-uni@3.0.0-5020420260813003.patch"
+    "@dcloudio/uni-cli-shared@3.0.0-5020620260917001": "patches/@dcloudio__uni-cli-shared@3.0.0-5020620260917001.patch",
+    "@dcloudio/uni-mp-vite@3.0.0-5020620260917001": "patches/@dcloudio__uni-mp-vite@3.0.0-5020620260917001.patch",
+    "@dcloudio/vite-plugin-uni@3.0.0-5020620260917001": "patches/@dcloudio__vite-plugin-uni@3.0.0-5020620260917001.patch"
   }
 }
 ```
@@ -156,9 +156,9 @@ npm 已内置 `npm patch`：补丁存于 `patches/` 目录、登记在根 `packa
 yarn 用 `patch:` 协议登记补丁，文件默认落 `.yarn/patches/`。把本仓库补丁迁移过去最省事的路径：
 
 ```bash
-yarn patch @dcloudio/vite-plugin-uni@3.0.0-5020420260813003
+yarn patch @dcloudio/vite-plugin-uni@3.0.0-5020620260917001
 # 在打印出的临时目录里应用本仓库补丁：
-git apply /path/to/uniapp-vite8-compatibility/patches/@dcloudio__vite-plugin-uni@3.0.0-5020420260813003.patch
+git apply /path/to/uniapp-vite8-compatibility/patches/@dcloudio__vite-plugin-uni@3.0.0-5020620260917001.patch
 yarn patch-commit -s <临时目录>
 ```
 
@@ -168,7 +168,7 @@ yarn patch-commit -s <临时目录>
 
 yarn 1 与 v12 之前的 npm 没有原生补丁能力，用 [patch-package](https://www.npmjs.com/package/patch-package)：
 
-1. 补丁文件改名 —— patch-package 用 `+` 连接 scope 与包名：`@dcloudio__uni-cli-shared@…patch` → `@dcloudio+uni-cli-shared+3.0.0-5020420260813003.patch`，其余两个同理，仍放 `patches/`。
+1. 补丁文件改名 —— patch-package 用 `+` 连接 scope 与包名：`@dcloudio__uni-cli-shared@…patch` → `@dcloudio+uni-cli-shared+3.0.0-5020620260917001.patch`，其余两个同理，仍放 `patches/`。
 2. `package.json` 加 `"postinstall": "patch-package"`（并安装 `patch-package` 为 devDependency）。
 3. 每次安装后自动应用；也可手动 `npx patch-package`。其底层用 `git apply`，可正常消费带 `index` 行的 git diff。
 
