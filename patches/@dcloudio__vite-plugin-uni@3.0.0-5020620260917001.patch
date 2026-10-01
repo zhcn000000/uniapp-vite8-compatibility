@@ -1,3 +1,31 @@
+diff --git a/dist/config/build.js b/dist/config/build.js
+index 2aaffbe8de7b1f637d31af7e9490ee1679eaebbc..3b3c1e2e9d9662881b98fa01292790cf82668b7f 100644
+--- a/dist/config/build.js
++++ b/dist/config/build.js
+@@ -9,7 +9,7 @@ function createBuild(options, config) {
+         platform: process.env.UNI_PLATFORM,
+         isX: process.env.UNI_APP_X === 'true',
+     });
+-    const rollupOutputOption = config.build?.rollupOptions?.output;
++    const rollupOutputOption = config.build?.rolldownOptions?.output;
+     const sourcemap = process.env.UNI_APP_SOURCEMAP === 'true'
+         ? 'hidden'
+         : config.build?.sourcemap;
+@@ -20,12 +20,12 @@ function createBuild(options, config) {
+         minify: config.build && (0, shared_1.hasOwn)(config.build, 'minify')
+             ? config.build.minify
+             : process.env.NODE_ENV === 'production'
+-                ? 'terser'
++                ? 'oxc'
+                 : false,
+         terserOptions: process.env.NODE_ENV !== 'production'
+             ? { compress: { drop_console: false } }
+             : undefined,
+-        rollupOptions: {
++        rolldownOptions: {
+             onwarn(warning, warn) {
+                 if (warning.code === 'EMPTY_BUNDLE') {
+                     // 忽略空包警告，通常是条件编译之类导致的
 diff --git a/dist/config/index.js b/dist/config/index.js
 index fa8a7d8e6b9bff914c2cbdc7a8e8802c3cf88b88..3867400966fda0c999a7754164ce3e8b47a65e58 100644
 --- a/dist/config/index.js

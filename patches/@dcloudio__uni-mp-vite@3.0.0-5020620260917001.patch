@@ -1,3 +1,130 @@
+diff --git a/dist/plugin/build.js b/dist/plugin/build.js
+index e94423e41d2d28443c770aeac9ab2dcd152eda14..6310b717de475f26c538be29b87ad70761d1e679 100644
+--- a/dist/plugin/build.js
++++ b/dist/plugin/build.js
+@@ -38,7 +38,7 @@ function createBuildOptions(inputDir, platform, options = {}) {
+                 entry: (0, uni_cli_shared_1.resolveMainPathOnce)(inputDir),
+                 formats: ['cjs'],
+             },
+-        rollupOptions: {
++        rolldownOptions: {
+             input: process.env.UNI_COMPILE_TARGET === 'uni_modules'
+                 ? {}
+                 : parseRollupInput(inputDir, platform, options),
+@@ -57,7 +57,11 @@ function createBuildOptions(inputDir, platform, options = {}) {
+                     return chunk.name + '.js';
+                 },
+                 format: 'cjs',
+-                manualChunks: createMoveToVendorChunkFn(),
++                // rolldown(vite8)：函数形式 manualChunks 已弃用，rolldown 内部本就将其迁移为
++                // codeSplitting 单组函数 name（getModuleInfo 桥接、返回 null 不入组走自动分块，
++                // 与 manualChunks 返回 undefined 等价），这里直接写现代 API 省去兼容层；
++                // debugName 供 rolldown timings 报告标注函数 name 组（无 chunk 命名影响）
++                codeSplitting: createCodeSplittingOptions(),
+                 chunkFileNames: createChunkFileNames(inputDir),
+                 plugins: [
+                     {
+@@ -217,19 +221,20 @@ function createMoveToVendorChunkFn() {
+                 return chunkName;
+             }
+             const { hasOptimizationSubPackages, subPackages } = (0, entry_1.getSubPackages)();
+-            // 处理子包引用的 node_modules 中的文件
++            // 处理子包引用的 node_modules 中的文件（分包优化）
++            // node_modules 在 HBuilderX 布局下位于 inputDir 内、CLI 布局（源码在 src/）下位于工程根，
++            // 因此不再约束 filename.startsWith(inputDir)，只要模块位于 node_modules 即参与判定；
++            // 原实现对 importer 的直接匹配无法覆盖传递依赖（深层依赖的直接 importer 是其他
++            // node_modules 文件，永远匹配不到分包前缀），这里沿 importer 图向上回溯到项目内文件：
++            // 所有可达项目内文件都在同一分包时整体下沉到 <分包>/common/vendor，遇到主包引用
++            // （或工程外/无 importer 的模块）则保持主包 common/vendor 不变。
+             if (hasOptimizationSubPackages &&
+                 subPackages.length &&
+-                filename.startsWith(inputDir) &&
+-                filename.includes('node_modules') &&
+-                !filename.startsWith(inputDir + '/node_modules')) {
+-                const moduleInfo = getModuleInfo(id);
+-                if (!moduleInfo || !moduleInfo.importers.length) {
+-                    return;
+-                }
+-                const matchSubPackages = new Set(subPackages.filter((subPackagePath) => moduleInfo.importers.some((importer) => importer.startsWith(inputDir + '/' + subPackagePath))));
+-                if (matchSubPackages.size === 1) {
+-                    return `${matchSubPackages.values().next().value}common/vendor`;
++                filename.includes('node_modules')) {
++                const chunkName = resolveSubPackageCommonVendor(id, getModuleInfo, inputDir, subPackages);
++                if (chunkName) {
++                    debugChunk(chunkName, normalizedId);
++                    return chunkName;
+                 }
+             }
+             // 非项目内的 js 资源，均打包到 vendor
+@@ -249,6 +254,68 @@ function createMoveToVendorChunkFn() {
+         }
+     };
+ }
++/**
++ * 判定一个 node_modules 模块是否只被单一分包使用，是则返回该分包的 vendor chunk 名。
++ * 沿 importer 图向上遍历（穿透 node_modules 中间层），收集所有可达项目内文件的分包归属：
++ * - 全部位于同一分包 → `<分包>/common/vendor`；
++ * - 出现任一主包项目文件（或 inputDir 外、无 importer 的模块）→ ''（留在主包 common/vendor）；
++ * - 位于多个分包 → 返回 undefined（留主包，主包是公共祖先）。
++ * 返回 undefined 与 '' 的区别：undefined 走原有 common/vendor 兜底并记录 debugChunk('common/vendor')。
++ */
++function resolveSubPackageCommonVendor(moduleId, getModuleInfo, inputDir, subPackages) {
++    const matchSubPackages = new Set();
++    const visited = new Set([moduleId]);
++    const queue = [moduleId];
++    while (queue.length && !matchSubPackages.has('')) {
++        const currentId = queue.pop();
++        const moduleInfo = getModuleInfo(currentId);
++        if (!moduleInfo || !moduleInfo.importers.length) {
++            matchSubPackages.add('');
++            break;
++        }
++        for (const importer of moduleInfo.importers) {
++            const normalizedImporter = (0, uni_cli_shared_1.normalizePath)(importer.split('?')[0]);
++            if (normalizedImporter.includes('node_modules')) {
++                if (!visited.has(importer)) {
++                    visited.add(importer);
++                    queue.push(importer);
++                }
++                continue;
++            }
++            // 项目内文件：主包文件（或 inputDir 外的未知模块）视为不可下沉
++            const subPackage = normalizedImporter.startsWith(inputDir + '/')
++                ? subPackages.find((root) => normalizedImporter.startsWith(inputDir + '/' + root))
++                : undefined;
++            matchSubPackages.add(subPackage || '');
++        }
++    }
++    if (matchSubPackages.size === 1 && !matchSubPackages.has('')) {
++        return `${matchSubPackages.values().next().value}common/vendor`;
++    }
++    return undefined;
++}
++/**
++ * rolldown(vite8)：把原 manualChunks 函数包装为 codeSplitting 单组配置。
++ * 与 rolldown 对 manualChunks 的内部迁移 shim 完全同构：name 返回 null 的模块不入组、
++ * 走自动分块（等价 manualChunks 返回 undefined）；云端编译（uni_modules）不拆分文件时
++ * 返回 undefined，与原 manualChunks: undefined 等价。
++ */
++function createCodeSplittingOptions() {
++    const manualChunks = createMoveToVendorChunkFn();
++    if (!manualChunks) {
++        return undefined;
++    }
++    return {
++        groups: [
++            {
++                debugName: 'uni-mp-chunks',
++                name(moduleId, ctx) {
++                    return manualChunks(moduleId, { getModuleInfo: (id) => ctx.getModuleInfo(id) });
++                },
++            },
++        ],
++    };
++}
+ function resolveIndependentCommonChunkName(root, chunkName) {
+     const normalizedRoot = (0, uni_cli_shared_1.normalizePath)(root).replace(/\/$/, '');
+     const normalizedChunkName = (0, uni_cli_shared_1.normalizePath)(chunkName);
 diff --git a/dist/plugins/mainJs.js b/dist/plugins/mainJs.js
 index b9882e63c06e9ab3fd80b8e081bdf6d691b4226d..a6d7cccab39e68bbfc862fc55a7b273991c1e815 100644
 --- a/dist/plugins/mainJs.js
