@@ -22,7 +22,7 @@ uniapp-vite8-compatibility/
 | `vitest` | `^5` |
 | `sass` / `sass-embedded` | `≥ 1.74`（现代编译 API 与 `silenceDeprecations` 所需；`sass-embedded` 优先，纯 JS `sass` 兜底） |
 
-补丁后可用vitest测试，也可正常导入uni插件，构建产物主要验证微信小程序端下正确性
+补丁后可用vitest测试，也可正常导入uni插件，构建产物主要验证微信小程序端下正确性，可用vite-plus替换vite
 
 ## 性能
 
