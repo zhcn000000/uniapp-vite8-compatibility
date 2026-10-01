@@ -1,12 +1,13 @@
 # uniapp-vite8-compatibility
 
-uni-app `@dcloudio/*` 编译链在 **Vite 8（rolldown 内核）** 下的兼容补丁集。uni-app 官方编译器目前仍按 vite 5 时代的假设生成配置（terser 压缩透传、esbuild 选项、alias customResolver、CJS-only 入口等），直接配 vite 8 会构建失败。本仓库用 3 个补丁完成适配，可在任何 uni-app CLI 工程中复用。
+uni-app `@dcloudio/*` 编译链在 **Vite 8（rolldown 内核）** 下的兼容补丁集。uni-app 官方编译器目前仍按 vite 5 时代的假设生成配置（terser 压缩透传、esbuild 选项、alias customResolver、CJS-only 入口等），直接配 vite 8 会构建失败。本仓库用 4 个补丁完成适配，可在任何 uni-app CLI 工程中复用。
 
 ```
 uniapp-vite8-compatibility/
 ├── README.md
 └── patches/
     ├── @dcloudio__uni-cli-shared@3.0.0-5020620260917001.patch
+    ├── @dcloudio__uni-h5-vite@3.0.0-5020620260917001.patch
     ├── @dcloudio__uni-mp-vite@3.0.0-5020620260917001.patch
     └── @dcloudio__vite-plugin-uni@3.0.0-5020620260917001.patch
 ```
@@ -16,6 +17,7 @@ uniapp-vite8-compatibility/
 | 包 | 锁定版本 |
 | ---- | ---- |
 | `@dcloudio/uni-cli-shared` | `3.0.0-5020620260917001` |
+| `@dcloudio/uni-h5-vite` | `3.0.0-5020620260917001` |
 | `@dcloudio/uni-mp-vite` | `3.0.0-5020620260917001` |
 | `@dcloudio/vite-plugin-uni` | `3.0.0-5020620260917001` |
 | `vite` | `^8`（验证于 8.3.x） |
@@ -33,7 +35,7 @@ uniapp-vite8-compatibility/
 - **构建加速约 1.9×**（6.0s → 3.2s，3 次波动 <2%）(本补丁只使uniapp vite插件与rolldown兼容，收益小幅受限)
 - **主包体积明显减少**：主包代码内联至分包；其中主包公共 vendor chunk 因 rolldown tree-shaking **缩小约 14%**，差额被分包页面 chunk 的内联摊平——总包体积不受损，主包内大依赖收益明显，主包+所有分包总体积大体不变
 
-额外补充了 node_modules分包优化，现在npm包只会分到实际引用的包中
+额外补充了 node_modules 分包优化：仅被单一分包引用的 npm 包会整体下沉到该分包的 `common/vendor`，不再全部挤在主包公共 vendor 里（判定逻辑见补丁 1）
 
 ### 其他版本能否应用？
 
@@ -45,9 +47,11 @@ uniapp-vite8-compatibility/
 
 ## 补丁内容
 
-### 1. `@dcloudio/uni-mp-vite` — `this.resolve` 解绑
+### 1. `@dcloudio/uni-mp-vite` — `this.resolve` 解绑 + rolldown 构建选项
 
 `dist/plugins/mainJs.js`：`globalComponentOptions.resolve` 由 `this.resolve` 改为 `(...args) => this.resolve(...args)`。原样传引用，后续调用时 `this` 已丢失，vite 8 下直接报错。
+
+`dist/plugin/build.js`：`rollupOptions` 改为 `rolldownOptions`；弃用的函数式 `manualChunks` 改写为现代 `codeSplitting` 单组配置（语义与 rolldown 内部的 manualChunks 迁移 shim 一致）；并优化 node_modules 分包下沉——不再约束模块必须位于 `inputDir` 内，且沿 importer 图向上回溯穿透传递依赖：仅被单一分包引用的 npm 包整体下沉到 `<分包>/common/vendor`（原实现只看直接 importer，深层依赖永远匹配不到分包前缀），遇到主包引用或多分包共享则保持主包 `common/vendor` 不变。
 
 ### 2. `@dcloudio/uni-cli-shared` — `uni:json` 放行 node_modules + sass 现代 API
 
@@ -60,13 +64,18 @@ uniapp-vite8-compatibility/
 - **importer 重写**：legacy 函数式 importer 改为现代 `FileImporter`：`canonicalize` 经 vite resolver 解析 alias / node_modules / 相对路径，`load` 沿用 `rebaseUrls` 保留条件编译预处理与 `url()` 重写；依赖列表改从 `result.loadedUrls` 收集，报错信息从异常的 `span` 字段兜底还原。
 - **选项映射**：`includePaths` → `loadPaths`，剥离 legacy 专属选项；`silenceDeprecations` 默认合并 `'import'`——uni.scss 变量经 `additionalData` 内联进每个编译单元，与 `@import` 共享作用域，而 `@use` 是模块作用域看不到内联变量，`@import` 暂不可避免，故静音该弃用告警。
 
-### 3. `@dcloudio/vite-plugin-uni` — 五处适配
+### 3. `@dcloudio/vite-plugin-uni` — 六处适配
 
-1. `dist/configResolved/plugins/json.js`：同上放行 node_modules 的 json；项目内 json 的输出由 `JSON.stringify(jsonObj)` 改为 `` `export default ${JSON.stringify(jsonObj ?? null)}` ``（rolldown 下必须是合法 ESM 模块）。
-2. `dist/config/index.js`：移除已废弃的 `esbuild` 选项（vite 8 的 JS 转换器归 oxc/rolldown，保留会冲突）。
-3. `dist/config/resolve.js`：alias 去掉 `customResolver` 与函数 replacement，改为纯 string 条目（`@` / `~@` → 源码根目录），走原生 ViteAlias。损失的能力（uts 模块 / 加密模块 / 独立分包 root 解析）mp-weixin 均不涉及；无扩展名导入由 `resolve.extensions`（含 `.vue` / `.json`）兜底。
-4. `dist/configResolved/index.js`：移除 Windows 下重挂 `customResolver` 的 workaround（vite#3331 早已修复）。
-5. 新增 `dist/index.mjs` 并在 `package.json` 增加 `exports`：本包是 CJS（`exports.default = uniPlugin`），`"type":"module"` 工程由 Node ESM 直载 vite.config 时，default import 拿到的是 `module.exports` 整体；经包装转发后 `import uni from '@dcloudio/vite-plugin-uni'` 才能拿到插件工厂函数。`exports` 同时附带 `"./package.json"` 子路径，防 exports 封闭拦截。
+1. `dist/config/build.js`：生产 `minify` 由 `'terser'` 改为 `'oxc'`（vite 8 压缩归 rolldown 内置 oxc），`rollupOptions` 改为 `rolldownOptions`。
+2. `dist/configResolved/plugins/json.js`：同上放行 node_modules 的 json；项目内 json 的输出由 `JSON.stringify(jsonObj)` 改为 `` `export default ${JSON.stringify(jsonObj ?? null)}` ``（rolldown 下必须是合法 ESM 模块）。
+3. `dist/config/index.js`：移除已废弃的 `esbuild` 选项（vite 8 的 JS 转换器归 oxc/rolldown，保留会冲突）。
+4. `dist/config/resolve.js`：alias 去掉 `customResolver` 与函数 replacement，改为纯 string 条目（`@` / `~@` → 源码根目录），走原生 ViteAlias。损失的能力（uts 模块 / 加密模块 / 独立分包 root 解析）mp-weixin 均不涉及；无扩展名导入由 `resolve.extensions`（含 `.vue` / `.json`）兜底。
+5. `dist/configResolved/index.js`：移除 Windows 下重挂 `customResolver` 的 workaround（vite#3331 早已修复）。
+6. 新增 `dist/index.mjs` 并在 `package.json` 增加 `exports`：本包是 CJS（`exports.default = uniPlugin`），`"type":"module"` 工程由 Node ESM 直载 vite.config 时，default import 拿到的是 `module.exports` 整体；经包装转发后 `import uni from '@dcloudio/vite-plugin-uni'` 才能拿到插件工厂函数。`exports` 同时附带 `"./package.json"` 子路径，防 exports 封闭拦截。
+
+### 4. `@dcloudio/uni-h5-vite` — 移除 optimizeDeps 死配置
+
+`dist/plugin/config.js`：整体移除 `optimizeDeps.esbuildOptions`（含 esbuild 格式的 `esbuildPrePlugin`）。vite 8（rolldown）对 `esbuildOptions` 的兼容层只映射 minify/define/loader 等具体字段，`plugins` 字段被整体丢弃——配置本就失效，且 dev 启动时每次打一条弃用告警；`#endif` 条件编译在正式编译链由 `uni:*` transform 插件处理，不依赖 dep scan 预处理。仅影响 H5 端。
 
 ## 配套调整（补丁之外，建议）
 
@@ -126,6 +135,7 @@ export default defineConfig(({ mode }) => ({
 # pnpm-workspace.yaml
 patchedDependencies:
   "@dcloudio/uni-cli-shared@3.0.0-5020620260917001": patches/@dcloudio__uni-cli-shared@3.0.0-5020620260917001.patch
+  "@dcloudio/uni-h5-vite@3.0.0-5020620260917001": patches/@dcloudio__uni-h5-vite@3.0.0-5020620260917001.patch
   "@dcloudio/uni-mp-vite@3.0.0-5020620260917001": patches/@dcloudio__uni-mp-vite@3.0.0-5020620260917001.patch
   "@dcloudio/vite-plugin-uni@3.0.0-5020620260917001": patches/@dcloudio__vite-plugin-uni@3.0.0-5020620260917001.patch
 ```
@@ -145,6 +155,7 @@ npm 已内置 `npm patch`：补丁存于 `patches/` 目录、登记在根 `packa
 {
   "patchedDependencies": {
     "@dcloudio/uni-cli-shared@3.0.0-5020620260917001": "patches/@dcloudio__uni-cli-shared@3.0.0-5020620260917001.patch",
+    "@dcloudio/uni-h5-vite@3.0.0-5020620260917001": "patches/@dcloudio__uni-h5-vite@3.0.0-5020620260917001.patch",
     "@dcloudio/uni-mp-vite@3.0.0-5020620260917001": "patches/@dcloudio__uni-mp-vite@3.0.0-5020620260917001.patch",
     "@dcloudio/vite-plugin-uni@3.0.0-5020620260917001": "patches/@dcloudio__vite-plugin-uni@3.0.0-5020620260917001.patch"
   }
@@ -164,13 +175,13 @@ git apply /path/to/uniapp-vite8-compatibility/patches/@dcloudio__vite-plugin-uni
 yarn patch-commit -s <临时目录>
 ```
 
-对三个包各做一遍。`patch-commit` 会自动生成补丁文件并改写 `package.json` 的依赖声明为 `patch:` 协议条目，无需手写。
+对四个包各做一遍。`patch-commit` 会自动生成补丁文件并改写 `package.json` 的依赖声明为 `patch:` 协议条目，无需手写。
 
 ### yarn 1 / 旧版 npm：patch-package
 
 yarn 1 与 v12 之前的 npm 没有原生补丁能力，用 [patch-package](https://www.npmjs.com/package/patch-package)：
 
-1. 补丁文件改名 —— patch-package 用 `+` 连接 scope 与包名：`@dcloudio__uni-cli-shared@…patch` → `@dcloudio+uni-cli-shared+3.0.0-5020620260917001.patch`，其余两个同理，仍放 `patches/`。
+1. 补丁文件改名 —— patch-package 用 `+` 连接 scope 与包名：`@dcloudio__uni-cli-shared@…patch` → `@dcloudio+uni-cli-shared+3.0.0-5020620260917001.patch`，其余三个同理，仍放 `patches/`。
 2. `package.json` 加 `"postinstall": "patch-package"`（并安装 `patch-package` 为 devDependency）。
 3. 每次安装后自动应用；也可手动 `npx patch-package`。其底层用 `git apply`，可正常消费带 `index` 行的 git diff。
 
