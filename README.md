@@ -33,6 +33,8 @@ uniapp-vite8-compatibility/
 - **构建加速约 1.9×**（6.0s → 3.2s，3 次波动 <2%）(本补丁只使uniapp vite插件与rolldown兼容，收益小幅受限)
 - **主包体积明显减少**：主包代码内联至分包；其中主包公共 vendor chunk 因 rolldown tree-shaking **缩小约 14%**，差额被分包页面 chunk 的内联摊平——总包体积不受损，主包内大依赖收益明显，主包+所有分包总体积大体不变
 
+额外补充了 node_modules分包优化，现在npm包只会分到实际引用的包中
+
 ### 其他版本能否应用？
 
 **可以，但需重验。** 补丁本体是标准 git unified diff：只要目标文件的上下文行没被上游改动，相邻版本通常可直接应用（`git apply` 容忍行号偏移）。注意事项：
