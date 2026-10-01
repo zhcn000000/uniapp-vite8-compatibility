@@ -1,0 +1,26 @@
+diff --git a/dist/plugin/config.js b/dist/plugin/config.js
+index 34e181e18a272906b785a4f0ccfbb23954185805..c2eb2e76b92f627c2495b3e1c1234f0a18d72cd2 100644
+--- a/dist/plugin/config.js
++++ b/dist/plugin/config.js
+@@ -10,7 +10,6 @@ const path_1 = __importDefault(require("path"));
+ const shared_1 = require("@vue/shared");
+ const uni_cli_shared_1 = require("@dcloudio/uni-cli-shared");
+ const utils_1 = require("../utils");
+-const esbuildPrePlugin_1 = require("./esbuild/esbuildPrePlugin");
+ const ssr_1 = require("./configureServer/ssr");
+ function createConfig(options) {
+     return function config(config, env) {
+@@ -89,9 +88,10 @@ function createConfig(options) {
+             optimizeDeps: {
+                 entries: (0, uni_cli_shared_1.resolveMainPathOnce)(inputDir),
+                 exclude: ssr_1.external,
+-                esbuildOptions: {
+-                    plugins: [(0, esbuildPrePlugin_1.esbuildPrePlugin)()],
+-                },
++                // rolldown(vite8)：esbuildOptions（含 esbuild 格式 setup/onLoad 预插件）在 vite 8 的
++                // 兼容层仅映射 minify/define/loader 等具体字段、plugins 字段被整体丢弃，本就是死配置
++                // 且每次 dev 启动打一条弃用告警——直接移除（#endif 条件编译在正式编译链由
++                // uni:* transform 插件处理，不依赖 dep scan 预处理）
+             },
+             define: (0, utils_1.createDefine)(env.command, config),
+             server,
