@@ -1,5 +1,5 @@
 diff --git a/dist/vite/plugins/json.js b/dist/vite/plugins/json.js
-index 45b62163a02f4fd1f0bc357d2c9b4e8d3d19a610..8ad33c828de2a1c2af3b826565f8244544477c3c 100644
+index 45b6216..8ad33c8 100644
 --- a/dist/vite/plugins/json.js
 +++ b/dist/vite/plugins/json.js
 @@ -20,6 +20,9 @@ function uniJsonPlugin() {
@@ -13,7 +13,7 @@ index 45b62163a02f4fd1f0bc357d2c9b4e8d3d19a610..8ad33c828de2a1c2af3b826565f82445
                  code: JSON.stringify((0, json_1.parseJson)((0, preprocess_1.preJson)(code, id), false, id), null, 2),
                  map: {
 diff --git a/dist/vite/plugins/vitejs/plugins/css.js b/dist/vite/plugins/vitejs/plugins/css.js
-index f8d36b5f6e1991260c1e4a45c5ea2dedac034e3d..96dd64f57dc4577865f8b03ade81687352f76d30 100644
+index 6d63a36..ed1f608 100644
 --- a/dist/vite/plugins/vitejs/plugins/css.js
 +++ b/dist/vite/plugins/vitejs/plugins/css.js
 @@ -30,6 +30,7 @@ exports.rewriteScssReadFileSync = exports.hoistAtRules = exports.minifyCSS = exp
@@ -36,7 +36,7 @@ index f8d36b5f6e1991260c1e4a45c5ea2dedac034e3d..96dd64f57dc4577865f8b03ade816873
          async transform(raw, id) {
              if (!exports.cssLangRE.test(id) || exports.commonjsProxyRE.test(id)) {
                  return;
-@@ -925,71 +931,126 @@ function loadPreprocessor(lang, root) {
+@@ -926,71 +932,126 @@ function loadPreprocessor(lang, root) {
          throw new Error(`Preprocessor dependency "${lang}" not found. Did you install it?`);
      }
  }

@@ -1,5 +1,5 @@
 diff --git a/dist/plugin/build.js b/dist/plugin/build.js
-index e94423e41d2d28443c770aeac9ab2dcd152eda14..6310b717de475f26c538be29b87ad70761d1e679 100644
+index 3aa9b9f..c8d9a5a 100644
 --- a/dist/plugin/build.js
 +++ b/dist/plugin/build.js
 @@ -38,7 +38,7 @@ function createBuildOptions(inputDir, platform, options = {}) {
@@ -126,7 +126,7 @@ index e94423e41d2d28443c770aeac9ab2dcd152eda14..6310b717de475f26c538be29b87ad707
      const normalizedRoot = (0, uni_cli_shared_1.normalizePath)(root).replace(/\/$/, '');
      const normalizedChunkName = (0, uni_cli_shared_1.normalizePath)(chunkName);
 diff --git a/dist/plugins/mainJs.js b/dist/plugins/mainJs.js
-index b9882e63c06e9ab3fd80b8e081bdf6d691b4226d..a6d7cccab39e68bbfc862fc55a7b273991c1e815 100644
+index b9882e6..a6d7ccc 100644
 --- a/dist/plugins/mainJs.js
 +++ b/dist/plugins/mainJs.js
 @@ -29,7 +29,7 @@ function uniMainJsPlugin(options = {}) {

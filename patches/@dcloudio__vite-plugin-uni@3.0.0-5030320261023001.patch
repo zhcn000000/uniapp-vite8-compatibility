@@ -1,5 +1,5 @@
 diff --git a/dist/config/build.js b/dist/config/build.js
-index 2aaffbe8de7b1f637d31af7e9490ee1679eaebbc..3b3c1e2e9d9662881b98fa01292790cf82668b7f 100644
+index 643336e..7bf82e9 100644
 --- a/dist/config/build.js
 +++ b/dist/config/build.js
 @@ -9,7 +9,7 @@ function createBuild(options, config) {
@@ -11,7 +11,7 @@ index 2aaffbe8de7b1f637d31af7e9490ee1679eaebbc..3b3c1e2e9d9662881b98fa01292790cf
      const sourcemap = process.env.UNI_APP_SOURCEMAP === 'true'
          ? 'hidden'
          : config.build?.sourcemap;
-@@ -20,12 +20,12 @@ function createBuild(options, config) {
+@@ -31,14 +31,14 @@ function createBuild(options, config) {
          minify: config.build && (0, shared_1.hasOwn)(config.build, 'minify')
              ? config.build.minify
              : process.env.NODE_ENV === 'production'
@@ -19,24 +19,25 @@ index 2aaffbe8de7b1f637d31af7e9490ee1679eaebbc..3b3c1e2e9d9662881b98fa01292790cf
 +                ? 'oxc'
                  : false,
          terserOptions: process.env.NODE_ENV !== 'production'
-             ? { compress: { drop_console: false } }
-             : undefined,
+             ? { compress: { drop_console: false, reduce_vars: !isHarmonyArkTs } }
+             : isHarmonyArkTs
+                 ? { compress: { reduce_vars: false } }
+                 : undefined,
 -        rollupOptions: {
 +        rolldownOptions: {
              onwarn(warning, warn) {
                  if (warning.code === 'EMPTY_BUNDLE') {
                      // 忽略空包警告，通常是条件编译之类导致的
 diff --git a/dist/config/index.js b/dist/config/index.js
-index fa8a7d8e6b9bff914c2cbdc7a8e8802c3cf88b88..3867400966fda0c999a7754164ce3e8b47a65e58 100644
+index 2cbba5e..3867400 100644
 --- a/dist/config/index.js
 +++ b/dist/config/index.js
-@@ -35,14 +35,6 @@ function createConfig(options, _uniPlugins) {
+@@ -35,13 +35,6 @@ function createConfig(options, _uniPlugins) {
              optimizeDeps: (0, optimizeDeps_1.createOptimizeDeps)(options),
              build: (0, build_1.createBuild)(options, config),
              css: (0, css_1.createCss)(options, config),
 -            esbuild: {
--                include: process.env.UNI_APP_X_DOM2 === 'true' &&
--                    process.env.UNI_APP_X_VAPOR_SCRIPT_LANG === 'true'
+-                include: (0, uni_cli_shared_1.isUniAppXStandardScriptSupported)()
 -                    ? /\.(tsx?|jsx)$/
 -                    : /\.(tsx?|jsx|uts)$/,
 -                exclude: /\.js$/,
@@ -46,10 +47,10 @@ index fa8a7d8e6b9bff914c2cbdc7a8e8802c3cf88b88..3867400966fda0c999a7754164ce3e8b
          if ((0, uni_cli_shared_1.isInHBuilderX)()) {
              pluginConfig.cacheDir = path_1.default.resolve(process.env.UNI_OUTPUT_DIR, '../../cache/.vite');
 diff --git a/dist/config/resolve.js b/dist/config/resolve.js
-index 963cbc5f55ddb74bd2faf395db6d63c9a46a6fcd..46067a9c4a8222f7e9d9db853f26255c11fae325 100644
+index cc420d0..609d7cf 100644
 --- a/dist/config/resolve.js
 +++ b/dist/config/resolve.js
-@@ -49,14 +49,16 @@ function createResolve(options, _config) {
+@@ -66,14 +66,16 @@ function createResolve(options, _config) {
      return {
          // 必须使用alias解析，插件定制的resolveId，不会被应用到css等预处理器中
          alias: [
@@ -74,7 +75,7 @@ index 963cbc5f55ddb74bd2faf395db6d63c9a46a6fcd..46067a9c4a8222f7e9d9db853f26255c
              ...alias,
          ],
 diff --git a/dist/configResolved/index.js b/dist/configResolved/index.js
-index 72cbedc56be94deb0106616dcb822f269bbcfd8a..fc08e2a788084a2fb58616e521337abe3c49f787 100644
+index 72cbedc..fc08e2a 100644
 --- a/dist/configResolved/index.js
 +++ b/dist/configResolved/index.js
 @@ -6,7 +6,6 @@ const uni_cli_shared_1 = require("@dcloudio/uni-cli-shared");
@@ -102,7 +103,7 @@ index 72cbedc56be94deb0106616dcb822f269bbcfd8a..fc08e2a788084a2fb58616e521337abe
  }
  exports.createConfigResolved = createConfigResolved;
 diff --git a/dist/configResolved/plugins/json.js b/dist/configResolved/plugins/json.js
-index 86db5f0a65110b49647b31dcc4b89df3b5dcfdba..d28fb240a6351d557934bc2bb646d85ff17ef683 100644
+index 86db5f0..d28fb24 100644
 --- a/dist/configResolved/plugins/json.js
 +++ b/dist/configResolved/plugins/json.js
 @@ -15,6 +15,9 @@ function uniJsonPlugin(options) {
@@ -126,7 +127,7 @@ index 86db5f0a65110b49647b31dcc4b89df3b5dcfdba..d28fb240a6351d557934bc2bb646d85f
          },
 diff --git a/dist/index.mjs b/dist/index.mjs
 new file mode 100644
-index 0000000000000000000000000000000000000000..856a4389325c8fb53d2141fc436ce9a6d60e46cc
+index 0000000..856a438
 --- /dev/null
 +++ b/dist/index.mjs
 @@ -0,0 +1,9 @@
@@ -140,7 +141,7 @@ index 0000000000000000000000000000000000000000..856a4389325c8fb53d2141fc436ce9a6
 +export const runBuild = cjs.runBuild;
 +export const shouldMoveSourceMapFromCache = cjs.shouldMoveSourceMapFromCache;
 diff --git a/package.json b/package.json
-index f129548e5ff07ba4d6b66d8eee6327ba268a162b..0f3f2949772c477f67f39a0866ec91c7be5787ce 100644
+index 35dfdd4..20d0a32 100644
 --- a/package.json
 +++ b/package.json
 @@ -20,6 +20,14 @@

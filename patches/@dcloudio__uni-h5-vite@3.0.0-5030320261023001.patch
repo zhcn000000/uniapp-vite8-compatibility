@@ -1,5 +1,5 @@
 diff --git a/dist/plugin/config.js b/dist/plugin/config.js
-index 34e181e18a272906b785a4f0ccfbb23954185805..c2eb2e76b92f627c2495b3e1c1234f0a18d72cd2 100644
+index 7a2ab33..239157c 100644
 --- a/dist/plugin/config.js
 +++ b/dist/plugin/config.js
 @@ -10,7 +10,6 @@ const path_1 = __importDefault(require("path"));
@@ -10,7 +10,7 @@ index 34e181e18a272906b785a4f0ccfbb23954185805..c2eb2e76b92f627c2495b3e1c1234f0a
  const ssr_1 = require("./configureServer/ssr");
  function createConfig(options) {
      return function config(config, env) {
-@@ -89,9 +88,10 @@ function createConfig(options) {
+@@ -96,9 +95,10 @@ function createConfig(options) {
              optimizeDeps: {
                  entries: (0, uni_cli_shared_1.resolveMainPathOnce)(inputDir),
                  exclude: ssr_1.external,
